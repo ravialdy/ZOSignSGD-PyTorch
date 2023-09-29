@@ -17,6 +17,14 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data.distributed import DistributedSampler
 
 class CIFAR10Trainer:
+    """
+    Initialize a trainer for CIFAR-10 dataset with DDP (Distributed Data Parallel) support.
+    
+    :param args: Command-line arguments containing hyperparameters and configurations.
+    :type args: argparse.Namespace
+    :param local_rank: The rank of the process for multi-GPU training.
+    :type local_rank: int
+    """
     def __init__(self, args, local_rank):
         self.args = args
         self.init_seed()
@@ -27,6 +35,9 @@ class CIFAR10Trainer:
         self.writer = SummaryWriter(os.path.join(self.args.save_path, 'tensorboard'))
         
     def init_seed(self):
+        """
+        Initialize random seeds for reproducibility.
+        """
         np.random.seed(self.args.seed)
         torch.manual_seed(self.args.seed)
         torch.cuda.manual_seed_all(self.args.seed)
@@ -34,6 +45,9 @@ class CIFAR10Trainer:
         torch.backends.cudnn.deterministic = True
 
     def init_data(self):
+        """
+        Initialize data loaders for the CIFAR-10 dataset.
+        """
         transform_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
@@ -50,6 +64,9 @@ class CIFAR10Trainer:
                                       sampler=self.test_sampler)
 
     def init_model(self):
+        """
+        Initialize the model, set it to train on CUDA if available.
+        """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu", self.local_rank)
         self.model = eval(self.args.network)(num_classes=10).to(self.device)
         self.model = DistributedDataParallel(self.model, device_ids=[local_rank], output_device=local_rank)
@@ -57,11 +74,20 @@ class CIFAR10Trainer:
         self.model.maxpool = nn.Identity()
 
     def init_optimizer(self):
+        """
+        Initialize the optimizer and learning rate scheduler.
+        """
         self.optimizer = optim.SGD(self.model.parameters(), lr=self.args.lr, weight_decay=self.args.weight_decay, momentum=self.args.momentum)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.args.epochs)
         self.scaler = GradScaler()
 
     def train_epoch(self, epoch):
+        """
+        Train the model for one epoch.
+        
+        :param epoch: The current epoch number.
+        :type epoch: int
+        """
         self.model.train()
         total, correct, loss_total = 0, 0, 0
         for inputs, labels in tqdm(self.trainloader, desc=f"Epoch {epoch}"):
@@ -82,6 +108,15 @@ class CIFAR10Trainer:
         self.scheduler.step()
 
     def test_epoch(self, epoch):
+        """
+        Validate the model.
+        
+        :param epoch: The current epoch number.
+        :type epoch: int
+        
+        :return: The test accuracy.
+        :rtype: float
+        """
         self.model.eval()
         total, correct = 0, 0
         with torch.no_grad():
@@ -96,6 +131,19 @@ class CIFAR10Trainer:
         return accuracy
 
     def save_checkpoint(self, epoch, accuracy, best_acc):
+        """
+        Save the model checkpoint.
+        
+        :param epoch: The current epoch number.
+        :type epoch: int
+        :param accuracy: The test accuracy.
+        :type accuracy: float
+        :param best_acc: The best test accuracy so far.
+        :type best_acc: float
+        
+        :return: The updated best test accuracy.
+        :rtype: float
+        """
         if dist.get_rank() == 0:
             state = {
                 'model': self.model.state_dict(),
@@ -110,6 +158,9 @@ class CIFAR10Trainer:
             return best_acc
 
     def run(self):
+        """
+        The main loop to run the training and testing.
+        """
         best_acc = 0
         for epoch in range(self.args.epochs):
             self.train_sampler.set_epoch(epoch)
