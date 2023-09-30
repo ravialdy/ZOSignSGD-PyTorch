@@ -35,7 +35,7 @@ Before you train the model, you'll need to download and prepare the CIFAR-10 dat
 2. Run the following command to download and prepare the dataset:
 
     ```bash
-    python download_cifar10.py
+    python download_data.py
     ```
 
 The script will download the CIFAR-10 dataset and prepare it in the `./data/CIFAR10` directory, organizing the images by their class labels.
