@@ -27,6 +27,23 @@ pip install torch torchvision tensorboard tqdm numpy
 
 Before implementing ZoSignSGD black-box adversarial attack, we need to train some models on CIFAR10 dataset (you can also use other datasets if you want!).
 
+### Download and Prepare the CIFAR-10 Dataset
+
+Before you train the model, you'll need to download and prepare the CIFAR-10 dataset. You can use the provided Python script to do this automatically. 
+
+1. Save the Python script for downloading and preparing the CIFAR-10 dataset as `download_data.py`.
+2. Run the following command to download and prepare the dataset:
+
+    ```bash
+    python download_cifar10.py
+    ```
+
+The script will download the CIFAR-10 dataset and prepare it in the `./data/CIFAR10` directory, organizing the images by their class labels.
+
+The first thing to do after this is to proceed to train the model.
+
+### Train the Model
+
 To train the model on the CIFAR-10 dataset with DDP to enable multi-GPU training, run the following command:
 
 ```bash
