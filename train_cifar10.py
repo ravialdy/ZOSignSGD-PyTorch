@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
+from torchvision.models import resnet18
 from torchvision.datasets import CIFAR10
 from torch.utils.data import DataLoader
 from torch.cuda.amp import autocast, GradScaler
@@ -27,11 +28,11 @@ class CIFAR10Trainer:
     """
     def __init__(self, args, local_rank):
         self.args = args
+        self.local_rank = local_rank
         self.init_seed()
         self.init_data()
         self.init_model()
         self.init_optimizer()
-        self.local_rank = local_rank
         self.writer = SummaryWriter(os.path.join(self.args.save_path, 'tensorboard'))
         
     def init_seed(self):
@@ -69,7 +70,7 @@ class CIFAR10Trainer:
         """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu", self.local_rank)
         self.model = eval(self.args.network)(num_classes=10).to(self.device)
-        self.model = DistributedDataParallel(self.model, device_ids=[local_rank], output_device=local_rank)
+        self.model = DistributedDataParallel(self.model, device_ids=[self.local_rank], output_device=self.local_rank)
         self.model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
         self.model.maxpool = nn.Identity()
 
@@ -182,12 +183,14 @@ if __name__ == "__main__":
     parser.add_argument('--lr', default=0.1, type=float)
     parser.add_argument('--weight_decay', default=5e-4, type=float)
     parser.add_argument('--momentum', default=0.9, type=float)
+    # Add local_rank for Distributed Data Parallel (DDP)
+    parser.add_argument('--local_rank', type=int, help='Local rank for distributed training')
     args = parser.parse_args()
 
-    dist.init_process_group(backend='nccl')
-    local_rank = dist.get_local_rank()
-    torch.cuda.set_device(local_rank)
+    if args.local_rank is not None:
+        torch.cuda.set_device(args.local_rank)
+        torch.distributed.init_process_group(backend='nccl', init_method='env://')
 
     os.makedirs(args.save_path, exist_ok=True)
-    trainer = CIFAR10Trainer(args, local_rank)
+    trainer = CIFAR10Trainer(args, args.local_rank)
     trainer.run()
